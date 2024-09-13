@@ -4,6 +4,14 @@ const PORT = 3000;
 
 const app = express();
 
+const schema_todo = zod.object({
+  Topic: zod.string(),
+  Task: zod.string(),
+  State: zod.literal("Not Started").or(zod.literal("Started")).or(zod.literal("Completed"))
+});
+
+const schema_queryparam = zod.number().int().positive();
+
 errorCount = 0;
 const todo1 = {
   Topic: "ESD",
@@ -32,9 +40,9 @@ function iterateTODOs(todos) {
   let completedList = "";
 
   for (let i = 0; i < todos.length; i++) {
-    if(!(todos[i].State == "Completed")){
+    if (!(todos[i].State == "Completed")) {
       pendingList += `${i + 1}. Topic: ${todos[i].Topic} | Task: ${todos[i].Task} | State: ${todos[i].State}.\n`;
-    }else{
+    } else {
       completedList += `${i + 1}. Topic: ${todos[i].Topic} | Task: ${todos[i].Task} | State: ${todos[i].State}.\n`;
     }
   }
@@ -53,27 +61,49 @@ app.use(checkLoggedIn);
 app.use(express.json());
 
 app.get("/", function (req, res) {
+  
   console.log("Logged In");
   const list_arr = iterateTODOs(todos);
-  const list = `List of Pending Tasks :\n${list_arr[0]}\n\nList of Completed Tasks :\n${list_arr[1]}`
+  const list = `List of Pending Tasks :\n${list_arr[0]}\n\nList of Completed Tasks :\n${list_arr[1]}`;
   res.send(list);
 });
 
 app.post("/add-todo", function (req, res) {
-  const new_todo = req.body;
-  if(!(new_todo.Topic == "" && new_todo.Task == "" && new_todo.Status == "")){
+  const response = schema_todo.safeParse(req.body);
+  if (response.success) {
+    const new_todo = response.data;
     todos.push(new_todo);
     res.status(200).send("Successfully added new ToDo item!");
-  }else{
+  } else {
     res.status(400).send("Wrong / Incomplete data!");
   }
-  
 });
+
+app.delete("/remove-todo", function (req, res) {
+  const response = schema_queryparam.safeParse(parseInt(req.query.todo_id));
+  if (response.success) {
+    const id = response.data - 1;
+    if (id >= 0 && id < todos.length) {
+      todos.splice(id, 1);
+      res.status(200).send("Item successfully removed!");
+    } else {
+      res.status(400).send("Invalid todo ID: out of range");
+    }
+  } else {
+    res.status(400).send("Invalid input: todo ID must be a positive integer");
+  }
+});
+
+app.listen(PORT || process.env.PORT, () => {
+  console.log(`Server running on port ${PORT || process.env.PORT}`);
+});
+
+//Global Catches
 
 app.use(function(err,req,res,next){
   errorCount++;
   res.json({
     msg : "Kuch toh gadbad hai Daya."
   });
+  return;
 })
-app.listen(PORT);
